@@ -2,6 +2,8 @@
 
 Présentation sur les modèles de comptage réalisée dans le cadre des Tuto@Mate le 21 mai 2024.
 
+**Accès au diaporama :** <https://larmarange.github.io/tuto-mate_modeles_comptage/>
+
 ## Ressources sur guide-R
 
 - https://larmarange.github.io/guide-R/analyses_avancees/modeles-comptage.html
