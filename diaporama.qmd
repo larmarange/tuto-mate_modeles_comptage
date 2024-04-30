@@ -1,0 +1,158 @@
+---
+title: "Modèles de comptage avec R"
+author:
+  - name: Joseph Larmarange
+    orcid: 0000-0001-7097-700X
+    url: https://joseph.larmarange.net
+    affiliations: IRD, Ceped
+subtitle: "Tuto@Mate, 21 mai 2024"
+format:
+  revealjs:
+    transition: fade
+    standalone: true
+    embed-resources: true
+    controls: true
+    width: 1600
+    height: 900
+    theme: [moon, custom.scss]
+editor: visual
+execute: 
+  echo: true
+---
+
+## Variable de type <q>comptage</q>
+
+-   *outcome* correspondant à un nombre entier positif
+-   souvent, nombre d’occurrences d'un évènement
+-   modèles linéaires et logistiques non adaptés
+
+# Modèle de Poisson
+
+## Un premier exemple
+
+Descendance atteinte par des femmes à l'âge de 30 ans
+
+-   jeu de données `fecondite` fourni par le package `{questionr}`
+
+-   contient 3 tables : `menages`, `femmes` et `enfants`
+
+## Aperçu des données
+
+```{r}
+#| output-location: column
+library(tidyverse)
+library(labelled)
+data("fecondite", package = "questionr")
+enfants |> look_for()
+```
+
+. . .
+
+Les données sont labellisées –\> conversion en facteurs avec `labelled::unlabelled()`
+
+```{r}
+femmes <- 
+  femmes |> 
+  unlabelled()
+enfants <- 
+  enfants |> 
+  unlabelled()
+```
+
+## Préparation des données
+
+Calcul de l'âge exact des mères à la naissance avec `lubridate::time_length()`
+
+```{r}
+enfants <-
+  enfants |>
+  left_join(
+    femmes |>
+      select(id_femme, date_naissance_mere = date_naissance),
+    by = "id_femme"
+  ) |>
+  mutate(
+    age_mere = time_length(
+      date_naissance_mere %--% date_naissance,
+      unit = "years"
+    )
+  )
+```
+
+. . .
+
+Comptons, par femme, le nombre d'enfants nés avant l'âge de 30 ans
+
+```{r}
+femmes <-
+  femmes |> 
+  left_join(
+    enfants |> 
+      filter(age_mere < 30) |> 
+      group_by(id_femme) |> 
+      count(name = "enfants_avt_30"),
+    by = "id_femme"
+  ) |> 
+  tidyr::replace_na(list(enfants_avt_30 = 0L))
+```
+
+## Préparation des données (2)
+
+Calcul de l'âge des femmes au moment de l'enquête et recodage du niveau d'éducation
+
+```{r}
+femmes <-
+  femmes |> 
+  mutate(
+    age = time_length(
+      date_naissance %--% date_entretien,
+      unit = "years"
+    ),
+    educ2 = educ |> 
+      fct_recode(
+        "secondaire/supérieur" = "secondaire",
+        "secondaire/supérieur" = "supérieur"
+      )
+  )
+```
+
+. . .
+
+Enfin, nous n'allons garder que les femmes âgées d'au moins 30 ans au moment de l'enquête.
+
+```{r}
+femmes30p <- 
+  femmes |> 
+  filter(age >= 30)
+```
+
+## Calcul du modèle de Poisson
+
+-   fait partie de la famille des modèles linéaires généralisés (*GLM*)
+-   fonction `stats::glm()` en précisant `family = poisson`
+-   Réduction par minimisation de l'AIC avec `stats::step()`
+
+```{r}
+#| output-location: column
+mod1_poisson <- glm(
+  enfants_avt_30 ~ educ2 + milieu + region,
+  family = poisson,
+  data = femmes30p
+)
+mod1_poisson <- step(mod1_poisson)
+```
+
+## Tableau des coefficients
+
+```{r}
+#| output-location: column
+library(gtsummary)
+theme_gtsummary_language(
+  "fr",
+  decimal.mark = ",",
+  big.mark = " "
+)
+mod1_poisson |> 
+  tbl_regression(exponentiate = TRUE) |> 
+  bold_labels()
+```
