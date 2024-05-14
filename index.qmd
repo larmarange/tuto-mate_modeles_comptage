@@ -15,7 +15,7 @@ format:
     width: 1600
     height: 900
     theme: [moon, custom.scss]
-    footer: "J. Larmarange · Modèles de comptage · Tuto@Mate"
+    footer: "Joseph Larmarange · Modèles de comptage · Tuto@Mate"
   beamer: 
     aspectratio: 169
     fontsize: "6pts"
@@ -42,9 +42,10 @@ Descendance atteinte par des femmes à l'âge de 30 ans
 
 ## Aperçu des données
 
+```{=tex}
 \AddToHook{env/Highlighting/begin}{\tiny}
 \AddToHook{env/verbatim/begin}{\tiny}
-
+```
 ```{r}
 #| output-location: column
 library(tidyverse)
@@ -183,4 +184,543 @@ mod1_poisson |>
   ggplot2::scale_y_continuous(limits = c(0, .4))
 ```
 
-## Évaluation de la surdiespersion
+## Évaluation de la surdispersion
+
+-   Le modèle de Poisson suppose que la variance est égale à la moyenne
+-   Or, la variance est souvent supérieure à la moyenne
+-   On parle alors de **surdispersion**
+-   Comparons distribution observée et distribution prédite/théorique du modèle
+
+## Visualiser / Tester la surdispersion
+
+```{r}
+#| output-location: column
+mod1_poisson |>
+  performance::check_predictions(type = "discrete_both")
+```
+
+```{r}
+#| output-location: column
+mod1_poisson |> 
+  performance::check_overdispersion()
+```
+
+# Modèle de quasi-Poisson
+
+## Modèle de quasi-Poisson
+
+-   Similaire au modèle de Poisson
+
+-   Fonction de lien logarithmique
+
+-   Plus de souplesse : variance modélisée comme une relation linéaire de la moyenne
+
+-   S'obtient toujours avec `glm()` mais en indiquant `family = quaispoisson`
+
+```{r}
+mod1_quasi <- glm(
+  enfants_avt_30 ~ educ2 + milieu,
+  family = quasipoisson,
+  data = femmes30p
+)
+```
+
+-   AIC non disponible =\> on ne peut pas utiliser `step()`
+
+-   Coefficients identiques au modèle de Poisson mais intervalles de confiance plus larges
+
+## Résultats du modèle de quasi-Poisson
+
+```{r}
+#| output-location: column
+mod1_quasi |> 
+  tbl_regression(exponentiate = TRUE) |> 
+  bold_labels()
+```
+
+```{r}
+#| output-location: column
+list(
+  Poisson = mod1_poisson,
+  "quasi-Poisson" = mod1_quasi
+) |>
+  ggcoef_compare(exponentiate = TRUE)
+```
+
+## Surdispersion du modèle
+
+```{r}
+#| output-location: column
+mod1_quasi |> 
+  performance::check_overdispersion()
+```
+
+Le modèle de quasi-Poisson n'a pas suffit à régler le problème de surdispersion dans le cadre de notre exemple.
+
+# Modèle binomial négatif
+
+## Modèle binomial négatif
+
+-   Fonction de lien logarithmique
+
+-   Spécification quadratique de la variance (i.e. selon la moyenne et le carré de la moyenne)
+
+-   N'est pas disponible via `glm()`
+
+-   Recours à la fonction `MASS::glm.nb()` (syntaxe similaire)
+
+-   AIC défini =\> on peut utiliser `step()`
+
+```{r}
+#| output-location: column
+mod1_nb <- MASS::glm.nb(
+  enfants_avt_30 ~ educ2 + milieu + region,
+  data = femmes30p
+)
+mod1_nb <- mod1_nb |> step()
+```
+
+## Résultats du modèle négatif binomial
+
+```{r}
+#| output-location: column
+mod1_nb |> 
+  tbl_regression(exponentiate = TRUE) |> 
+  bold_labels()
+```
+
+```{r}
+#| output-location: column
+list(
+  Poisson = mod1_poisson,
+  "quasi-Poisson" = mod1_quasi,
+  "Binomial négatif" = mod1_nb
+) |>
+  ggcoef_compare(exponentiate = TRUE)
+```
+
+## Vérification de la surdispersion
+
+```{r}
+#| output-location: column
+mod1_nb |>
+  performance::check_predictions(type = "discrete_both")
+```
+
+```{r}
+#| output-location: column
+mod1_nb |> 
+  performance::check_overdispersion()
+```
+
+## Comparaison de la performance des 2 modèles
+
+```{r}
+performance::compare_performance(
+  mod1_poisson,
+  mod1_nb,
+  metrics = "common"
+)
+```
+
+# Modèle de comptage avec une variable binaire
+
+## Une alternative à la régression logistique
+
+-   une variable binaire peut-être modélisée avec un modèle de comptage, en considérant que la personne a vécu 0 fois ou 1 fois l'événèment d'intérêt
+
+-   permets de calculer des *prevalence ratios* (ou risques relatifs) plutôt que des *odds ratio*
+
+-   exemple : probabilité de faire du sport (enquête *histoire de vie 2003*)
+
+```{r}
+data(hdv2003, package = "questionr")
+d <- hdv2003 |> 
+  mutate(
+    groupe_ages = age |>
+      cut(
+        c(18, 25, 45, 65, 99),
+        right = FALSE, include.lowest = TRUE,
+        labels = c("18-24 ans", "25-44 ans", "45-64 ans", "65 ans et plus")
+      )
+  ) |> 
+  set_variable_labels(
+    sport = "Pratique un sport ?",
+    sexe = "Sexe",
+    groupe_ages = "Groupe d'âges",
+    heures.tv = "Heures de télévision / jour"
+  )
+contrasts(d$sexe) <- contr.treatment(2, base = 2)
+```
+
+## Calcul des modèles
+
+**Régression logistique**
+
+```{r}
+mod2_binomial <- glm(
+  sport ~ sexe + groupe_ages + heures.tv,
+  family = binomial,
+  data = d
+)
+```
+
+**Modèle de Poisson**
+
+-   Attention : il faut transformer la variable d'intérêt en un entier du type 0/1
+
+```{r}
+d$sport2 <- as.integer(d$sport == "Oui")
+mod2_poisson <- glm(
+  sport2 ~ sexe + groupe_ages + heures.tv,
+  family = poisson,
+  data = d
+)
+```
+
+## Coefficients des deux modèles
+
+```{r}
+#| output-location: column
+mod2_binomial |> 
+  ggstats::ggcoef_table(exponentiate = TRUE)
+```
+
+```{r}
+#| output-location: column
+mod2_poisson |> 
+  ggstats::ggcoef_table(exponentiate = TRUE)
+```
+
+## Alternative : le modèle log-binomial
+
+-   nativement avec `glm(family = binomial(link = "log"))` mais peut avoir des difficultés à converger
+
+-   nécessité d'initialiser les coefficients avec ceux d'un modèle de Poisson
+
+-   lien logarithmique =\> coefficients interprétables comme des risques relatifs
+
+```{r}
+#| output-location: column
+mod2_log <- glm(
+  sport ~ sexe + groupe_ages + heures.tv,
+  family = binomial(link = "log"),
+  start = mod2_poisson$coefficients,
+  data = d
+)
+mod2_log |> 
+  ggstats::ggcoef_table(exponentiate = TRUE)
+```
+
+## Comparaison des performances
+
+```{r}
+performance::compare_performance(
+  mod2_binomial,
+  mod2_poisson,
+  mod2_log,
+  metrics = "common"
+)
+```
+
+## Contrastes marginaux marginaux
+
+-   ré-exprime les différences selon l'échelle de la variable d'intérêt, soit ici des différences de probabilité (en points de pourcentage)
+
+```{r}
+#| output-location: column
+list(
+  "logistique" = mod2_binomial,
+  "Poisson" = mod2_poisson,
+  "log-binomiale" = mod2_log
+) |> 
+  ggcoef_compare(
+    tidy_fun = broom.helpers::tidy_marginal_contrasts
+  ) +
+  scale_x_continuous(
+    labels = scales::label_percent(suffix = "pp")
+  )
+```
+
+# Modèles d'incidence / de taux
+
+## Modéliser une incidence / un taux
+
+-   En épidémiologie, le taux d’**incidence** rapporte le nombre de nouveaux cas pendant une période donnée à la population exposée pendant cette même période.
+-   En démographie, le terme de **taux** est utilisé pour désigner la fréquence relative d’un évènement au sein d’une population pendant une période de temps donnée (par exemple : taux de natalité).
+-   Si l’ensemble des individus sont observés pendant une seule unité de temps, alors cela revient à rapporter le nombre moyen d’évènements à 1 : nous pouvons utiliser un modèle classique de de comptage.
+-   Le plus souvent, la durée d’observation / d’exposition varie d’un individu à l’autre.
+-   Pour chaque individu, il nous faut donc connaître le nombre d'évènements vécus ($n_{evts}$) et la durée d'exposition ($d_{exp}$). Ce que l'on cherche à modéliser est donc le ratio $n_{evts}/d_{exp}$.
+-   Une astuce consiste à utiliser un modèle ayant une fonction de lien logarithmique (*log*).
+-   On cherchera donc à modéliser notre variable sous la forme $log(n_{evts}/d_{exp}) = \beta_iX_i$.
+-   Or, $log(n_{evts}/d_{exp}) = log(n_{evts}) - log(d_{exp})$. Nous pouvons donc réécrire l'équation du modèle sous la forme $log(n_{evts}) = \beta_iX_i + log(d_{exp})$.
+-   Nous retombons sur un modèle de comptage classique, à condition d'ajouter à chaque observation ce qu'on appelle un **décalage** (*offset* en anglais) de $log(d_{exp})$.
+-   Ce décalage correspond donc en quelque sorte à une variable ajoutée au modèle mais pour laquelle on ne calcule pas de coefficient.
+
+## Premier exemple (données individuelles)
+
+Prenons un premier exemple à partir du jeux de données `gtsummary::trial` qui contient des informations sur 200 patients atteints d'un cancer. Il contient entre autre les variables suivantes :
+
+-   *death* : variable binaire (0/1) indiquant si le patient est décédé
+
+-   *ttdeath* : le nombre de mois d'observation jusqu'au décès (si décès) ou jusqu'à la fin de l'étude (si survie)
+
+-   *stage* : un facteur indiquant le stade T de la tumeur (plus la valeur est élevée, plus la tumeur est grosse)
+
+-   *trt* : le traitement reçu par le patient (A ou B)
+
+-   *response* : une variable binaire (0/1) indiquant si le traitement a eu un effet sur la tumeur (diminution)
+
+Nous nous intéressons donc aux facteurs associés au taux de mortalité (*death/ttdeath*) : nous allons donc réaliser un modèle de Poisson sur la variable *death* en ajoutant un décalage (*offset*) correspondant à *log(ttdeath)*.
+
+## Calcul du modèle
+
+Pour ajouter un décalage, nous avons deux syntaxes équivalentes : soit en ajoutant `offset(log(ttdeath))` directement à l'équation du modèle, soit en passant à `glm()` l'argument `offset = log(ttdeath)`.
+
+```{r}
+mod3_poisson <- glm(
+  death ~ stage + trt + response + offset(log(ttdeath)),
+  family = poisson,
+  data = gtsummary::trial
+)
+
+mod3_poisson_alt <- glm(
+  death ~ stage + trt + response,
+  offset = log(ttdeath),
+  family = poisson,
+  data = gtsummary::trial
+)
+
+mod3_poisson |> 
+  performance::check_overdispersion()
+```
+
+## Résultats du modèle
+
+L'exponentielle des coefficients s'interprète comme un *incidence risk ratio (IRR)*.
+
+```{r}
+#| output-location: column
+mod3_poisson |> 
+  ggstats::ggcoef_table(exponentiate = TRUE)
+```
+
+## Deuxième exemple (données agrégées)
+
+Nous allons considérer le jeu de données `MASS::Insurance` qui provient d'une compagnie d'assurance américaine et porte sur le troisième trimestre 1973.
+
+Il indique le nombre de demande d'indemnisations (*Claims*) parmi les assurés pour leur voiture (*Holders*) en fonction de leur groupe d'âges (*Age*) et de la taille de la cylindrée de la voiture (*Group*).
+
+Nous cherchons à identifier les facteurs associés au taux de réclamation.
+
+```{r}
+d <- MASS::Insurance
+d$Age <- factor(d$Age, ordered = FALSE)
+d$Group <- factor(d$Group, ordered = FALSE)
+
+mod4_poisson <- glm(
+  Claims ~ Age + Group + offset(log(Holders)),
+  family = poisson,
+  data = d
+)
+mod4_poisson |> 
+  performance::check_overdispersion()
+```
+
+## Résultats
+
+```{r}
+#| output-location: column
+mod4_poisson |> 
+  ggstats::ggcoef_table(exponentiate = TRUE)
+```
+
+Le taux de réclamation diminue avec l'âge de l'assuré (il est 40% moindre pour les assurés de plus de 35 ans par rapport à ceux de moins de 25 ans) et augmente avec la cylindrée de la voiture (il est 80% plus élevé pour les véhicules avec une cylindrée de plus de 2 litres par rapport aux véhicules avec une cylindrée de moins d'1 litre).
+
+# Modèles zero-inflated et hurdle
+
+## Données d'illustration
+
+Nous allons utiliser un jeu de données issu d'un article de Partha Deb et Pravin K. Trivedi. Ce jeu de données porte sur 4406 individus âgés de 66 ans ou plus et couvert par le programme américain *Medicare*.
+
+L'analyse va porter sur la demande de soins, mesurée ici à travers le nombre de visites médicales (*ofp*).
+
+Pour les variables explicatives, nous allons considérer le genre du patient (*gender*), le fait de disposer d'une assurance privée (*privins*), la santé perçue (*health*) et le nombre de conditions chroniques de l'assuré.
+
+```{r}
+load(url("https://github.com/larmarange/guide-R/raw/main/analyses_avancees/ressources/DebTrivedi.rda"))
+d <- DebTrivedi |>
+  mutate(
+    gender = gender |> fct_recode("femme" = "female", "homme" = "male"),
+    privins = privins |> fct_recode("non" = "no", "oui" = "yes"),
+    health = health |> fct_recode("pauvre" = "poor", "moyenne" = "average", "excellente" = "excellent")
+  ) |> 
+  set_variable_labels(
+    ofp = "Nombre de visites médicales",
+    gender = "Genre de l'assuré",
+    privins = "Dispose d'une assurance privée ?",
+    health = "Santé perçue",
+    numchron = "Nombre de conditions chroniques"
+  )
+contrasts(d$health) <- contr.treatment(3, base = 2)
+```
+
+## Modèle binomial négatif
+
+```{r}
+#| output-location: column
+mod5_nb <- MASS::glm.nb(
+  ofp ~ gender + privins + health + numchron,
+  data = d
+)
+mod5_nb |>
+  performance::check_overdispersion()
+```
+
+```{r}
+#| output-location: column
+mod5_nb |> 
+  performance::check_predictions() |> 
+  plot() +
+  xlim(0, 20)
+```
+
+## Modèle zero-inflated
+
+-   Le nombre de 0 prédit par le modèle est inférieur à celui observé.
+-   Les 0 sont <q>sur-représentés dans nos données</q> par rapport à une distribution négative binomiale.
+-   On pourra alors considérer un modèle *zero-inflated*.
+-   Un modèle de Poisson *zero-inflated* combine deux modèles : un modèle logistique binaire et un modèle de Poisson.
+-   Dans un premier temps, on applique le modèle logistique binaire. Si la valeur obtenue est 0, le résultat final est 0. Si la valeur obtenue est 1, alors on applique le modèle de Poisson.
+-   Un tel modèle se calcule avec `pscl::zeroinfl()`.
+
+```{r}
+mod5_zip <- pscl::zeroinfl(
+  ofp ~ gender + privins + health + numchron,
+  data = d
+)
+```
+
+## Résultats
+
+```{r}
+#| output-location: column
+#| fig-height: 8
+#| fig-width: 8
+mod5_zip |> 
+  ggstats::ggcoef_multicomponents(
+    type = "table",
+    exponentiate = TRUE,
+    intercept = TRUE
+  )
+```
+
+## Variantes
+
+-   On peut choisir des variables différentes pour chaque sous-modèle (avec `|`), voire faire un modèle simple avec seulement un *intercept* pour la composante logistique.
+
+-   On peut également utiliser un modèle négatif binomial avec `dist = "negbin"`.
+
+```{r}
+mod5_zip_simple <- pscl::zeroinfl(
+  ofp ~ gender + privins + health + numchron | 1,
+  data = d
+)
+mod5_zinb <- pscl::zeroinfl(
+  ofp ~ gender + privins + health + numchron,
+  dist = "negbin",
+  data = d
+)
+performance::compare_performance(
+  mod5_nb,
+  mod5_zip_simple,
+  mod5_zip,
+  mod5_zinb,
+  metrics = "AIC"
+)
+```
+
+## Tableau des coefficients
+
+```{r}
+#| output-location: column
+tbl_log <- mod5_zinb |> 
+  tbl_regression(
+    tidy_fun = broom.helpers::tidy_zeroinfl,
+    component = "zero_inflated",
+    exponentiate = TRUE
+  )
+tbl_nb <- mod5_zinb |> 
+  tbl_regression(
+    tidy_fun = broom.helpers::tidy_zeroinfl,
+    component = "conditional",
+    exponentiate = TRUE
+  )
+list(tbl_log, tbl_nb) |> 
+  tbl_merge(
+    c(
+      "**OR (régression logistique)**",
+      "**RR (négtaif binomial)**"
+    )
+  ) |> 
+  bold_labels()
+```
+
+## Interprétation
+
+-   Si l’interprétation du modèle de comptage reste classique, celle du modèle logistique binaire est parfois un peu plus complexe.
+-   En effet, il y a deux sources de 0 dans le modèle *zero-inflated* : si certains sont générés par la composante logistique binaire, le modèle de comptage génère lui aussi des 0.
+-   Dès lors, le modèle logistique binaire ne suffit pas à lui seul à identifier les facteurs associés de vivre au moins une fois l’évènement.
+-   Si l’objectif de l’analyse est avant tout d’identifier les facteurs associés avec le nombre moyen d’évènements, on pourra éventuellement se contenter d’un modèle *zero-inflated* simple, c’est-à-dire avec seulement un *intercept* pour la composante *zero-inflated* afin de corriger la sur-représentation des zéros dans nos données.
+-   Alternativement, on pourra se tourner vers un modèle avec <q>saut</q> qui distingue les valeurs nulles des valeurs positives : les modèles *hurdle* en anglais.
+-   Les modèles *hurdle* se distinguent des modèles *zero-inflated* dans le sens où l’on combine un modèle logistique binomial pour déterminer si les individus ont vécu au moins une fois l’évènement et un modèle de comptage tronqué (qui n’accepte que des valeurs strictement positives) qui détermine le nombre d’évènements vécus uniquement pour ceux l’ayant vécu au moins une fois.
+
+## Calcul d'un modèle hurdle
+
+On utilisera simplement `pscl::hurdle()` à la place de `pscl::zeroinfl()`.
+
+```{r}
+mod5_hurdle_poisson <- pscl::hurdle(
+  ofp ~ gender + privins + health + numchron,
+  data = d
+)
+mod5_hurdle_nb <- pscl::hurdle(
+  ofp ~ gender + privins + health + numchron,
+  dist = "negbin",
+  data = d
+)
+```
+
+## Résultats du modèle hurdle
+
+```{r}
+#| output-location: column
+#| fig-height: 8
+#| fig-width: 8
+mod5_hurdle_nb |> 
+  ggstats::ggcoef_multicomponents(
+    type = "table",
+    exponentiate = TRUE,
+    intercept = TRUE
+  )
+```
+
+# Ressources
+
+## guide-R
+
+**Sur les modèles de comptage :**
+
+-   Modèles de comptage : <https://larmarange.github.io/guide-R/analyses_avancees/modeles-comptage.html>
+
+-   Modèles d'incidence : <https://larmarange.github.io/guide-R/analyses_avancees/modeles-incidence.html>
+
+-   Modèles zero-inflated et hurdle : <https://larmarange.github.io/guide-R/analyses_avancees/modeles-zero-inflated.html>
+
+**Autres ressources utiles :**
+
+-   Sélection pas à pas d'un modèle : <https://larmarange.github.io/guide-R/analyses/selection-modele-pas-a-pas.html>
+
+-   Prédictions marginales, contrastes marginaux & effets marginaux : <https://larmarange.github.io/guide-R/analyses/estimations-marginales.html>
+
+-   Contrastes (variables catégorielles) : <https://larmarange.github.io/guide-R/analyses/contrastes.html>
