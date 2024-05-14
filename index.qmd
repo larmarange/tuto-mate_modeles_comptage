@@ -15,6 +15,10 @@ format:
     width: 1600
     height: 900
     theme: [moon, custom.scss]
+    footer: "J. Larmarange · Modèles de comptage · Tuto@Mate"
+  beamer: 
+    aspectratio: 169
+    fontsize: "6pts"
 editor: visual
 execute: 
   echo: true
@@ -37,6 +41,9 @@ Descendance atteinte par des femmes à l'âge de 30 ans
 -   contient 3 tables : `menages`, `femmes` et `enfants`
 
 ## Aperçu des données
+
+\AddToHook{env/Highlighting/begin}{\tiny}
+\AddToHook{env/verbatim/begin}{\tiny}
 
 ```{r}
 #| output-location: column
@@ -128,9 +135,9 @@ femmes30p <-
 
 ## Calcul du modèle de Poisson
 
--   fait partie de la famille des modèles linéaires généralisés (*GLM*)
 -   fonction `stats::glm()` en précisant `family = poisson`
--   Réduction par minimisation de l'AIC avec `stats::step()`
+-   réduction par minimisation de l'AIC avec `stats::step()`
+-   fonction de lien logarithmique (*log*) –\> exponentielle des coefficients s'interprète comme un <q>risque relatif</q>
 
 ```{r}
 #| output-location: column
@@ -147,12 +154,33 @@ mod1_poisson <- step(mod1_poisson)
 ```{r}
 #| output-location: column
 library(gtsummary)
-theme_gtsummary_language(
-  "fr",
-  decimal.mark = ",",
-  big.mark = " "
+theme_gtsummary_language("fr",
+  decimal.mark = ",", big.mark = " "
 )
 mod1_poisson |> 
   tbl_regression(exponentiate = TRUE) |> 
   bold_labels()
 ```
+
+```{r}
+#| output-location: column
+library(ggstats)
+mod1_poisson |> 
+  ggcoef_table(exponentiate = TRUE)
+```
+
+## Interprétation des coefficients
+
+-   Le modèle de Poisson modélise le nombre moyen d'évènements.
+-   Le RR pour la modalité *secondaire/supérieur* est de 0,5 : indépendamment des autres variables du modèle, la descendance atteinte moyenne de ces femmes est moitié moindre que celle des femmes de la modalité de référence.
+-   Vérification visuelle avec un graphique des prédictions marginales moyennes.
+
+```{r}
+#| output-location: column
+mod1_poisson |> 
+  broom.helpers::plot_marginal_predictions() |> 
+  patchwork::wrap_plots() &
+  ggplot2::scale_y_continuous(limits = c(0, .4))
+```
+
+## Évaluation de la surdiespersion
