@@ -4,6 +4,8 @@ Présentation sur les modèles de comptage réalisée dans le cadre des Tuto@Mat
 
 **Accès au diaporama :** <https://larmarange.github.io/tuto-mate_modeles_comptage/>
 
+**Version PDF :** <https://larmarange.github.io/tuto-mate_modeles_comptage/index.pdf>
+
 ## Ressources sur guide-R
 
 - https://larmarange.github.io/guide-R/analyses_avancees/modeles-comptage.html
