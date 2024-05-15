@@ -163,6 +163,8 @@ mod1_poisson |>
   bold_labels()
 ```
 
+. . .
+
 ```{r}
 #| output-location: column
 library(ggstats)
@@ -174,6 +176,9 @@ mod1_poisson |>
 
 -   Le modèle de Poisson modélise le nombre moyen d'évènements.
 -   Le RR pour la modalité *secondaire/supérieur* est de 0,5 : indépendamment des autres variables du modèle, la descendance atteinte moyenne de ces femmes est moitié moindre que celle des femmes de la modalité de référence.
+
+. . .
+
 -   Vérification visuelle avec un graphique des prédictions marginales moyennes.
 
 ```{r}
@@ -199,6 +204,8 @@ mod1_poisson |>
   performance::check_predictions(type = "discrete_both")
 ```
 
+. . .
+
 ```{r}
 #| output-location: column
 mod1_poisson |> 
@@ -215,7 +222,9 @@ mod1_poisson |>
 
 -   Plus de souplesse : variance modélisée comme une relation linéaire de la moyenne
 
--   S'obtient toujours avec `glm()` mais en indiquant `family = quaispoisson`
+. . .
+
+-   S'obtient toujours avec `glm()` mais en indiquant `family = quasipoisson`
 
 ```{r}
 mod1_quasi <- glm(
@@ -224,6 +233,8 @@ mod1_quasi <- glm(
   data = femmes30p
 )
 ```
+
+. . .
 
 -   AIC non disponible =\> on ne peut pas utiliser `step()`
 
@@ -237,6 +248,8 @@ mod1_quasi |>
   tbl_regression(exponentiate = TRUE) |> 
   bold_labels()
 ```
+
+. . .
 
 ```{r}
 #| output-location: column
@@ -255,7 +268,7 @@ mod1_quasi |>
   performance::check_overdispersion()
 ```
 
-Le modèle de quasi-Poisson n'a pas suffit à régler le problème de surdispersion dans le cadre de notre exemple.
+Le modèle de quasi-Poisson n'a pas suffi à régler le problème de surdispersion dans le cadre de notre exemple.
 
 # Modèle binomial négatif
 
@@ -264,6 +277,8 @@ Le modèle de quasi-Poisson n'a pas suffit à régler le problème de surdispers
 -   Fonction de lien logarithmique
 
 -   Spécification quadratique de la variance (i.e. selon la moyenne et le carré de la moyenne)
+
+. . .
 
 -   N'est pas disponible via `glm()`
 
@@ -289,6 +304,8 @@ mod1_nb |>
   bold_labels()
 ```
 
+. . .
+
 ```{r}
 #| output-location: column
 list(
@@ -306,6 +323,8 @@ list(
 mod1_nb |>
   performance::check_predictions(type = "discrete_both")
 ```
+
+. . .
 
 ```{r}
 #| output-location: column
@@ -327,9 +346,11 @@ performance::compare_performance(
 
 ## Une alternative à la régression logistique
 
--   une variable binaire peut-être modélisée avec un modèle de comptage, en considérant que la personne a vécu 0 fois ou 1 fois l'événèment d'intérêt
+-   une variable binaire peut-être modélisée avec un modèle de comptage, en considérant que la personne a vécu 0 fois ou 1 fois l’évènement d'intérêt
 
--   permets de calculer des *prevalence ratios* (ou risques relatifs) plutôt que des *odds ratio*
+-   permet de calculer des *prevalence ratios* (ou risques relatifs) plutôt que des *odds ratio*
+
+. . .
 
 -   exemple : probabilité de faire du sport (enquête *histoire de vie 2003*)
 
@@ -365,6 +386,8 @@ mod2_binomial <- glm(
 )
 ```
 
+. . .
+
 **Modèle de Poisson**
 
 -   Attention : il faut transformer la variable d'intérêt en un entier du type 0/1
@@ -385,6 +408,8 @@ mod2_poisson <- glm(
 mod2_binomial |> 
   ggstats::ggcoef_table(exponentiate = TRUE)
 ```
+
+. . .
 
 ```{r}
 #| output-location: column
@@ -448,12 +473,21 @@ list(
 
 -   En épidémiologie, le taux d’**incidence** rapporte le nombre de nouveaux cas pendant une période donnée à la population exposée pendant cette même période.
 -   En démographie, le terme de **taux** est utilisé pour désigner la fréquence relative d’un évènement au sein d’une population pendant une période de temps donnée (par exemple : taux de natalité).
+
+. . .
+
 -   Si l’ensemble des individus sont observés pendant une seule unité de temps, alors cela revient à rapporter le nombre moyen d’évènements à 1 : nous pouvons utiliser un modèle classique de de comptage.
 -   Le plus souvent, la durée d’observation / d’exposition varie d’un individu à l’autre.
 -   Pour chaque individu, il nous faut donc connaître le nombre d'évènements vécus ($n_{evts}$) et la durée d'exposition ($d_{exp}$). Ce que l'on cherche à modéliser est donc le ratio $n_{evts}/d_{exp}$.
+
+. . .
+
 -   Une astuce consiste à utiliser un modèle ayant une fonction de lien logarithmique (*log*).
 -   On cherchera donc à modéliser notre variable sous la forme $log(n_{evts}/d_{exp}) = \beta_iX_i$.
 -   Or, $log(n_{evts}/d_{exp}) = log(n_{evts}) - log(d_{exp})$. Nous pouvons donc réécrire l'équation du modèle sous la forme $log(n_{evts}) = \beta_iX_i + log(d_{exp})$.
+
+. . .
+
 -   Nous retombons sur un modèle de comptage classique, à condition d'ajouter à chaque observation ce qu'on appelle un **décalage** (*offset* en anglais) de $log(d_{exp})$.
 -   Ce décalage correspond donc en quelque sorte à une variable ajoutée au modèle mais pour laquelle on ne calcule pas de coefficient.
 
@@ -490,7 +524,11 @@ mod3_poisson_alt <- glm(
   family = poisson,
   data = gtsummary::trial
 )
+```
 
+. . .
+
+```{r}
 mod3_poisson |> 
   performance::check_overdispersion()
 ```
@@ -543,9 +581,13 @@ Le taux de réclamation diminue avec l'âge de l'assuré (il est 40% moindre pou
 
 Nous allons utiliser un jeu de données issu d'un article de Partha Deb et Pravin K. Trivedi. Ce jeu de données porte sur 4406 individus âgés de 66 ans ou plus et couvert par le programme américain *Medicare*.
 
+. . .
+
 L'analyse va porter sur la demande de soins, mesurée ici à travers le nombre de visites médicales (*ofp*).
 
 Pour les variables explicatives, nous allons considérer le genre du patient (*gender*), le fait de disposer d'une assurance privée (*privins*), la santé perçue (*health*) et le nombre de conditions chroniques de l'assuré.
+
+. . .
 
 ```{r}
 load(url("https://github.com/larmarange/guide-R/raw/main/analyses_avancees/ressources/DebTrivedi.rda"))
@@ -577,6 +619,8 @@ mod5_nb |>
   performance::check_overdispersion()
 ```
 
+. . .
+
 ```{r}
 #| output-location: column
 mod5_nb |> 
@@ -589,9 +633,15 @@ mod5_nb |>
 
 -   Le nombre de 0 prédit par le modèle est inférieur à celui observé.
 -   Les 0 sont <q>sur-représentés dans nos données</q> par rapport à une distribution négative binomiale.
+
+. . .
+
 -   On pourra alors considérer un modèle *zero-inflated*.
 -   Un modèle de Poisson *zero-inflated* combine deux modèles : un modèle logistique binaire et un modèle de Poisson.
 -   Dans un premier temps, on applique le modèle logistique binaire. Si la valeur obtenue est 0, le résultat final est 0. Si la valeur obtenue est 1, alors on applique le modèle de Poisson.
+
+. . .
+
 -   Un tel modèle se calcule avec `pscl::zeroinfl()`.
 
 ```{r}
@@ -620,6 +670,8 @@ mod5_zip |>
 -   On peut choisir des variables différentes pour chaque sous-modèle (avec `|`), voire faire un modèle simple avec seulement un *intercept* pour la composante logistique.
 
 -   On peut également utiliser un modèle négatif binomial avec `dist = "negbin"`.
+
+. . .
 
 ```{r}
 mod5_zip_simple <- pscl::zeroinfl(
@@ -669,9 +721,18 @@ list(tbl_log, tbl_nb) |>
 ## Interprétation
 
 -   Si l’interprétation du modèle de comptage reste classique, celle du modèle logistique binaire est parfois un peu plus complexe.
+
+. . .
+
 -   En effet, il y a deux sources de 0 dans le modèle *zero-inflated* : si certains sont générés par la composante logistique binaire, le modèle de comptage génère lui aussi des 0.
 -   Dès lors, le modèle logistique binaire ne suffit pas à lui seul à identifier les facteurs associés de vivre au moins une fois l’évènement.
+
+. . .
+
 -   Si l’objectif de l’analyse est avant tout d’identifier les facteurs associés avec le nombre moyen d’évènements, on pourra éventuellement se contenter d’un modèle *zero-inflated* simple, c’est-à-dire avec seulement un *intercept* pour la composante *zero-inflated* afin de corriger la sur-représentation des zéros dans nos données.
+
+. . .
+
 -   Alternativement, on pourra se tourner vers un modèle avec <q>saut</q> qui distingue les valeurs nulles des valeurs positives : les modèles *hurdle* en anglais.
 -   Les modèles *hurdle* se distinguent des modèles *zero-inflated* dans le sens où l’on combine un modèle logistique binomial pour déterminer si les individus ont vécu au moins une fois l’évènement et un modèle de comptage tronqué (qui n’accepte que des valeurs strictement positives) qui détermine le nombre d’évènements vécus uniquement pour ceux l’ayant vécu au moins une fois.
 
@@ -724,3 +785,7 @@ mod5_hurdle_nb |>
 -   Prédictions marginales, contrastes marginaux & effets marginaux : <https://larmarange.github.io/guide-R/analyses/estimations-marginales.html>
 
 -   Contrastes (variables catégorielles) : <https://larmarange.github.io/guide-R/analyses/contrastes.html>
+
+-   Calcul avec des dates : <https://larmarange.github.io/guide-R/manipulation_avancee/dates.html>
+
+-   Prise en compte des poids d'enquêtes et du plan d'échantillonnage
