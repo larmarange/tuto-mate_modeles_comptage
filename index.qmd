@@ -134,6 +134,33 @@ femmes30p <-
   filter(age >= 30)
 ```
 
+## Statistiques descriptives
+
+-   Représentation des moyennes (avec intervalle de confiance à 95%), écart-type (avec `t.test()`) et nombre d'observations (astuce en utilisant `length()`) + test de comparaison (*one-way ANOVA*).
+
+```{r}
+#| output-location: column
+library(gtsummary)
+theme_gtsummary_language("fr",
+  decimal.mark = ",", big.mark = " "
+)
+mean_cil <- function(x, conf.level = 0.95) {
+  t.test(x, conf.level = conf.level)$conf.int[1]
+}
+mean_cih <- function(x, conf.level = 0.95) {
+  t.test(x, conf.level = conf.level)$conf.int[2]
+}
+femmes30p |> 
+  tbl_continuous(
+    variable = enfants_avt_30,
+    include = c(educ2, milieu, region),
+    statistic = ~ "{mean} [{mean_cil} - {mean_cih}] ({sd}) [n={length}]",
+    digits = ~ c(2, 2, 2, 2, 0)
+  ) |> 
+  add_p(test = ~ "aov") |> 
+  bold_labels()
+```
+
 ## Calcul du modèle de Poisson
 
 -   fonction `stats::glm()` en précisant `family = poisson`
@@ -154,10 +181,6 @@ mod1_poisson <- step(mod1_poisson)
 
 ```{r}
 #| output-location: column
-library(gtsummary)
-theme_gtsummary_language("fr",
-  decimal.mark = ",", big.mark = " "
-)
 mod1_poisson |> 
   tbl_regression(exponentiate = TRUE) |> 
   bold_labels()
@@ -507,6 +530,32 @@ Prenons un premier exemple à partir du jeux de données `gtsummary::trial` qui 
 
 Nous nous intéressons donc aux facteurs associés au taux de mortalité (*death/ttdeath*) : nous allons donc réaliser un modèle de Poisson sur la variable *death* en ajoutant un décalage (*offset*) correspondant à *log(ttdeath)*.
 
+## Statistiques descriptives
+
+```{r}
+#| output-location: column
+percent2 <- purrr::partial(style_percent, digits = 1)
+trial <- gtsummary::trial |> 
+  set_value_labels(
+    response = c(no = 0, yes = 1)
+  ) |> 
+  unlabelled()
+trial |> 
+  tbl_custom_summary(
+    include = c(stage, trt, response),
+    stat_fns = ~ ratio_summary("death", "ttdeath"),
+    statistic = ~"{ratio}% [{conf.low}; {conf.high}] ({num}/{denom})",
+    digits = ~ c(percent2, percent2, percent2, 0, 0),
+    overall_row = TRUE,
+    overall_row_label = "Overall"
+  ) |> 
+  bold_labels()
+```
+
+-   Intervalles de confiance à 95% réalisés avec `poisson.test()`.
+
+-   Pas de méthode `add_p()` disponible ici -\> nous verrons plus loin la réalisation de modèles univariables.
+
 ## Calcul du modèle
 
 Pour ajouter un décalage, nous avons deux syntaxes équivalentes : soit en ajoutant `offset(log(ttdeath))` directement à l'équation du modèle, soit en passant à `glm()` l'argument `offset = log(ttdeath)`.
@@ -515,14 +564,14 @@ Pour ajouter un décalage, nous avons deux syntaxes équivalentes : soit en ajo
 mod3_poisson <- glm(
   death ~ stage + trt + response + offset(log(ttdeath)),
   family = poisson,
-  data = gtsummary::trial
+  data = trial
 )
 
 mod3_poisson_alt <- glm(
   death ~ stage + trt + response,
   offset = log(ttdeath),
   family = poisson,
-  data = gtsummary::trial
+  data = trial
 )
 ```
 
@@ -541,6 +590,26 @@ L'exponentielle des coefficients s'interprète comme un *incidence risk ratio (I
 #| output-location: column
 mod3_poisson |> 
   ggstats::ggcoef_table(exponentiate = TRUE)
+```
+
+## Modèles univariables
+
+-   Calcul de plusieurs modèles univariables pour vérifier les associations avant ajustement
+
+```{r}
+#| output-location: column
+trial |> 
+  tbl_uvregression(
+    y = death,
+    include = c(stage, trt, response),
+    method = glm,
+    method.args = list(
+      family = poisson,
+      offset = log(ttdeath)
+    ),
+    exponentiate = TRUE
+  ) |> 
+  bold_labels()
 ```
 
 ## Deuxième exemple (données agrégées)
@@ -780,6 +849,8 @@ mod5_hurdle_nb |>
 
 **Autres ressources utiles :**
 
+-   Étiquettes de valeurs : <https://larmarange.github.io/guide-R/manipulation/etiquettes-valeurs.html>
+
 -   Sélection pas à pas d'un modèle : <https://larmarange.github.io/guide-R/analyses/selection-modele-pas-a-pas.html>
 
 -   Prédictions marginales, contrastes marginaux & effets marginaux : <https://larmarange.github.io/guide-R/analyses/estimations-marginales.html>
@@ -788,4 +859,4 @@ mod5_hurdle_nb |>
 
 -   Calcul avec des dates : <https://larmarange.github.io/guide-R/manipulation_avancee/dates.html>
 
--   Prise en compte des poids d'enquêtes et du plan d'échantillonnage
+-   Prise en compte des poids d'enquêtes et du plan d'échantillonnage : plusieurs chapitres et sous-sections de chapitre
