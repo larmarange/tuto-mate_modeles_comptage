@@ -532,6 +532,8 @@ Nous nous intéressons donc aux facteurs associés au taux de mortalité (*death
 
 ## Statistiques descriptives
 
+-   exprimée en personne-mois (pm) ou *person-months* en anglais
+
 ```{r}
 #| output-location: column
 percent2 <- purrr::partial(style_percent, digits = 1)
@@ -544,7 +546,7 @@ trial |>
   tbl_custom_summary(
     include = c(stage, trt, response),
     stat_fns = ~ ratio_summary("death", "ttdeath"),
-    statistic = ~"{ratio}% [{conf.low}; {conf.high}] ({num}/{denom})",
+    statistic = ~"{ratio}/100pm [{conf.low}; {conf.high}] ({num}/{denom})",
     digits = ~ c(percent2, percent2, percent2, 0, 0),
     overall_row = TRUE,
     overall_row_label = "Overall"
@@ -609,6 +611,7 @@ trial |>
     ),
     exponentiate = TRUE
   ) |> 
+  add_global_p() |> 
   bold_labels()
 ```
 
@@ -781,7 +784,7 @@ list(tbl_log, tbl_nb) |>
   tbl_merge(
     c(
       "**OR (régression logistique)**",
-      "**RR (négtaif binomial)**"
+      "**RR (négatif binomial)**"
     )
   ) |> 
   bold_labels()
